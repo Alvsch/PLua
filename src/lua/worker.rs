@@ -1,0 +1,362 @@
+use std::cell::RefCell;
+use std::path::PathBuf;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Mutex;
+
+use anyhow::{anyhow, Result};
+
+use super::runtime::LuaRuntime;
+use crate::config::ConfigManager;
+
+pub type PluginInfo = (String, String, String, String, bool, PathBuf);
+
+pub struct LuaManager {
+    pub runtime: LuaRuntime,
+    pub config_manager: ConfigManager,
+    initialized: bool,
+    registry_refs: RefCell<Vec<String>>,
+}
+
+impl LuaManager {
+    pub fn new(data_path: &PathBuf) -> Result<Self> {
+        let config_manager = ConfigManager::new(data_path)
+            .map_err(|e| anyhow!("Failed to initialize config manager: {}", e))?;
+
+        let runtime = LuaRuntime::new(data_path)
+            .map_err(|e| anyhow!("Failed to initialize Lua runtime: {}", e))?;
+
+        Ok(Self {
+            runtime,
+            config_manager,
+            initialized: false,
+            registry_refs: RefCell::new(Vec::new()),
+        })
+    }
+
+    pub fn register_plugin_ref(&self, plugin_name: &str) {
+        let mut refs = self.registry_refs.borrow_mut();
+        refs.push(plugin_name.to_string());
+    }
+
+    pub fn clear_plugin_ref(&self, plugin_name: &str) {
+        let mut refs = self.registry_refs.borrow_mut();
+        refs.retain(|name| name != plugin_name);
+    }
+
+    pub fn get_registered_plugins(&self) -> Vec<String> {
+        self.registry_refs.borrow().clone()
+    }
+}
+
+pub enum LuaCommand {
+    Reload {
+        response: Sender<Result<()>>,
+    },
+    GetPluginList {
+        response: Sender<Vec<(String, bool)>>,
+    },
+    EnablePlugin {
+        name: String,
+        response: Sender<Result<bool>>,
+    },
+    DisablePlugin {
+        name: String,
+        response: Sender<Result<bool>>,
+    },
+    ReloadPlugin {
+        name: String,
+        response: Sender<Result<bool>>,
+    },
+    GetPluginInfo {
+        name: String,
+        response: Sender<Option<PluginInfo>>,
+    },
+}
+
+pub fn run_lua_worker(rx: Receiver<LuaCommand>, data_dir: String) {
+    let data_path = PathBuf::from(data_dir);
+
+    let manager = match LuaManager::new(&data_path) {
+        Ok(m) => Mutex::new(m),
+        Err(e) => {
+            eprintln!("Failed to initialize LuaManager: {}", e);
+            return;
+        }
+    };
+
+    {
+        let mut lock = manager.lock().unwrap();
+
+        if let Err(e) = lock.runtime.init_api() {
+            eprintln!("Failed to initialize Lua API: {}", e);
+            return;
+        }
+
+        lock.initialized = true;
+
+        if let Err(e) = lock.runtime.discover_plugins() {
+            eprintln!("Failed to discover plugins at startup: {}", e);
+        }
+    }
+
+    let config_manager_clone = {
+        let lock = manager.lock().unwrap();
+        lock.config_manager.clone()
+    };
+
+    {
+        let mut lock = manager.lock().unwrap();
+        if let Err(e) = lock.runtime.load_enabled_plugins(&config_manager_clone) {
+            eprintln!("Failed to load enabled plugins at startup: {}", e);
+        }
+    }
+
+    while let Ok(cmd) = rx.recv() {
+        match cmd {
+            LuaCommand::Reload { response } => {
+                let result = reload_lua(&manager);
+                let _ = response.send(result);
+            }
+            LuaCommand::GetPluginList { response } => {
+                let result = get_plugin_list(&manager);
+                let _ = response.send(result);
+            }
+            LuaCommand::EnablePlugin { name, response } => {
+                let result = enable_plugin(&manager, name);
+                let _ = response.send(result);
+            }
+            LuaCommand::DisablePlugin { name, response } => {
+                let result = disable_plugin(&manager, name);
+                let _ = response.send(result);
+            }
+            LuaCommand::ReloadPlugin { name, response } => {
+                let result = reload_plugin(&manager, &name);
+                let _ = response.send(result);
+            }
+            LuaCommand::GetPluginInfo { name, response } => {
+                let result = get_plugin_info(&manager, &name);
+                let _ = response.send(result);
+            }
+        }
+    }
+}
+
+fn reload_lua(manager: &Mutex<LuaManager>) -> Result<()> {
+    let is_initialized = {
+        let lock = manager.lock().unwrap();
+        lock.initialized
+    };
+
+    if !is_initialized {
+        return Err(anyhow!("Cannot reload: Lua runtime not initialized"));
+    }
+
+    let disable_result = {
+        let mut lock = manager.lock().unwrap();
+
+        let plugins = lock.get_registered_plugins();
+        for plugin in plugins {
+            lock.clear_plugin_ref(&plugin);
+        }
+
+        lock.runtime.disable_all_plugins()
+    };
+
+    if let Err(e) = disable_result {
+        return Err(anyhow!("Failed to disable plugins: {}", e));
+    }
+
+    let discovery_result = {
+        let mut lock = manager.lock().unwrap();
+        lock.runtime.discover_plugins()
+    };
+
+    if let Err(e) = discovery_result {
+        return Err(anyhow!("Failed to rediscover plugins: {}", e));
+    }
+
+    let config_manager_clone = {
+        let lock = manager.lock().unwrap();
+        lock.config_manager.clone()
+    };
+
+    let result = {
+        let mut lock = manager.lock().unwrap();
+        lock.runtime.load_enabled_plugins(&config_manager_clone)
+    };
+
+    if let Err(e) = result {
+        return Err(anyhow!("Failed to reload enabled plugins: {}", e));
+    }
+    Ok(())
+}
+
+fn get_plugin_list(manager: &Mutex<LuaManager>) -> Vec<(String, bool)> {
+    match manager.lock() {
+        Ok(lock) => lock
+            .runtime
+            .plugins
+            .iter()
+            .map(|(name, plugin)| (name.clone(), plugin.enabled))
+            .collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+fn reload_plugin(manager: &Mutex<LuaManager>, name: &str) -> Result<bool> {
+    let is_initialized = {
+        match manager.lock() {
+            Ok(lock) => lock.initialized,
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    if !is_initialized {
+        return Err(anyhow!("Cannot reload plugin: Lua runtime not initialized"));
+    }
+
+    match manager.lock() {
+        Ok(mut lock) => {
+            lock.clear_plugin_ref(name);
+
+            let result = lock.runtime.reload_plugin(name);
+
+            if result.is_ok() {
+                lock.register_plugin_ref(name);
+            } else {
+                println!("Failed to reload plugin {}: {:?}", name, result);
+            }
+
+            result
+        }
+        Err(_) => Err(anyhow!("Failed to acquire lock")),
+    }
+}
+
+fn get_plugin_info(manager: &Mutex<LuaManager>, name: &str) -> Option<PluginInfo> {
+    let is_initialized = match manager.lock() {
+        Ok(lock) => lock.initialized,
+        Err(_) => return None,
+    };
+
+    if !is_initialized {
+        return None;
+    }
+
+    match manager.lock() {
+        Ok(lock) => {
+            if let Some(plugin) = lock.runtime.plugins.get(name) {
+                Some((
+                    plugin.name.clone(),
+                    plugin.description.clone(),
+                    plugin.version.clone(),
+                    plugin.author.clone(),
+                    plugin.enabled,
+                    plugin.file_path.clone(),
+                ))
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
+    }
+}
+
+fn enable_plugin(manager: &Mutex<LuaManager>, name: String) -> Result<bool> {
+    let is_initialized = {
+        match manager.lock() {
+            Ok(lock) => lock.initialized,
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    if !is_initialized {
+        return Err(anyhow!("Cannot enable plugin: Lua runtime not initialized"));
+    }
+
+    let config_result = {
+        match manager.lock() {
+            Ok(mut lock) => lock.config_manager.enable_plugin(name.clone()),
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    let added_to_config = match config_result {
+        Ok(result) => result,
+        Err(e) => return Err(anyhow!("Failed to enable plugin in config: {}", e)),
+    };
+
+    let runtime_result = {
+        match manager.lock() {
+            Ok(mut lock) => {
+                lock.register_plugin_ref(&name);
+
+                let result = lock.runtime.enable_plugin(&name);
+
+                if result.is_err() {
+                    println!("Failed to enable plugin {}: {:?}", &name, result);
+                }
+
+                result
+            }
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    if let Err(e) = runtime_result {
+        if let Ok(lock) = manager.lock() {
+            lock.clear_plugin_ref(&name);
+        }
+        return Err(anyhow!("Failed to enable plugin in runtime: {}", e));
+    }
+
+    Ok(added_to_config)
+}
+
+fn disable_plugin(manager: &Mutex<LuaManager>, name: String) -> Result<bool> {
+    let is_initialized = {
+        match manager.lock() {
+            Ok(lock) => lock.initialized,
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    if !is_initialized {
+        return Err(anyhow!(
+            "Cannot disable plugin: Lua runtime not initialized"
+        ));
+    }
+
+    let runtime_result = {
+        match manager.lock() {
+            Ok(mut lock) => {
+                lock.clear_plugin_ref(&name);
+
+                let result = lock.runtime.disable_plugin(&name);
+
+                if result.is_err() {
+                    println!("Failed to disable plugin {}: {:?}", &name, result);
+                }
+
+                result
+            }
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    if let Err(e) = runtime_result {
+        return Err(anyhow!("Failed to disable plugin in runtime: {}", e));
+    }
+
+    let config_result = {
+        match manager.lock() {
+            Ok(mut lock) => lock.config_manager.disable_plugin(&name),
+            Err(_) => return Err(anyhow!("Failed to acquire lock")),
+        }
+    };
+
+    match config_result {
+        Ok(removed) => Ok(removed),
+        Err(e) => Err(anyhow!("Failed to disable plugin in config: {}", e)),
+    }
+}

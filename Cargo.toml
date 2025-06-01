@@ -1,5 +1,5 @@
 [package]
-name = "hello-pumpkin"
+name = "plua"
 version = "0.1.0"
 edition = "2021"
 
@@ -19,3 +19,12 @@ tokio = { version = "1.42", features = ["full"] }
 env_logger = "0.11.6"
 log = "0.4.22"
 rand = "0.9.1"
+mlua = { version = "0.9", features = [
+    "lua54",
+    "vendored",
+    "serialize",
+    "async",
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
