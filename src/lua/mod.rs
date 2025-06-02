@@ -1,16 +1,17 @@
 pub mod events;
+pub mod manifest;
 pub mod runtime;
 pub mod worker;
 
 use std::path::PathBuf;
-use std::sync::mpsc::{self, Sender};
 use std::sync::Once;
+use std::sync::mpsc::{self, Sender};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
-use self::worker::{run_lua_worker, LuaCommand};
+use self::worker::{LuaCommand, run_lua_worker};
 
 static INIT: Once = Once::new();
 static mut COMMAND_SENDER: Option<Sender<LuaCommand>> = None;

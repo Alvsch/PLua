@@ -3,12 +3,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mlua::{Function, Lua, Table, Value};
 use pumpkin::{
-    plugin::{block::block_place::BlockPlaceEvent, Context, EventHandler, EventPriority},
+    plugin::{Context, EventHandler, EventPriority, block::block_place::BlockPlaceEvent},
     server::Server,
 };
 use pumpkin_api_macros::with_runtime;
 
-use crate::lua::worker::{send_event_command, LuaCommand};
+use crate::lua::worker::{LuaCommand, send_event_command};
 
 pub struct BlockPlaceEventHandler;
 
@@ -94,11 +94,9 @@ pub fn trigger_event(lua: &Lua, event_data_json: &str) -> mlua::Result<()> {
     event_table.set("block_against", event_data.block_against)?;
     event_table.set("can_build", event_data.can_build)?;
 
-    for pair in block_place_listeners.pairs::<Value, Function>() {
-        if let Ok((_, callback)) = pair {
-            if let Err(e) = callback.call::<()>(event_table.clone()) {
-                log::error!("Error in block_place event handler: {}", e);
-            }
+    for (_, callback) in block_place_listeners.pairs::<Value, Function>().flatten() {
+        if let Err(e) = callback.call::<()>(event_table.clone()) {
+            log::error!("Error in block_place event handler: {}", e);
         }
     }
 

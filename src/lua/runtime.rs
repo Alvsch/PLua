@@ -10,16 +10,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::SERVER;
 use crate::config::ConfigManager;
 use crate::lua::events;
+use crate::lua::manifest::LuaPluginManifest;
 
 pub struct LuaPlugin {
-    pub name: String,
-    pub description: String,
-    pub version: String,
-    pub author: String,
+    pub manifest: LuaPluginManifest,
     pub file_path: PathBuf,
     pub enabled: bool,
-    pub on_enable: Option<mlua::RegistryKey>,
-    pub on_disable: Option<mlua::RegistryKey>,
 }
 
 pub struct LuaRuntime {
@@ -52,7 +48,7 @@ impl LuaRuntime {
             let entry = entry.context("Failed to read directory entry")?;
             let path = entry.path();
 
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "lua") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "lua") {
                 self.load_plugin_metadata(&path)?;
             }
         }
@@ -67,41 +63,18 @@ impl LuaRuntime {
         // Only used for metadata extraction
         let temp_lua = Lua::new();
 
-        temp_lua
+        let manifest = temp_lua
             .load(&script)
             .set_name(path.file_name().unwrap().to_string_lossy().as_ref())
-            .exec()?;
-
-        let globals = temp_lua.globals();
-        let metadata: Table = globals
-            .get("PLUGIN_INFO")
-            .with_context(|| format!("Plugin at {:?} is missing PLUGIN_INFO table", path))?;
-
-        let name: String = metadata
-            .get("name")
-            .with_context(|| format!("Plugin at {:?} is missing name in PLUGIN_INFO", path))?;
-        let description: String = metadata
-            .get("description")
-            .unwrap_or_else(|_| String::new());
-        let version: String = metadata
-            .get("version")
-            .unwrap_or_else(|_| "1.0.0".to_string());
-        let author: String = metadata
-            .get("author")
-            .unwrap_or_else(|_| "Unknown".to_string());
+            .eval::<LuaPluginManifest>()?;
 
         let plugin = LuaPlugin {
-            name: name.clone(),
-            description,
-            version,
-            author,
+            manifest,
             file_path: path.to_path_buf(),
             enabled: false,
-            on_enable: None,
-            on_disable: None,
         };
 
-        self.plugins.insert(name, plugin);
+        self.plugins.insert(plugin.manifest.name.clone(), plugin);
 
         Ok(())
     }
@@ -188,8 +161,8 @@ impl LuaRuntime {
 
                     let plugin_name = lua_ctx
                         .globals()
-                        .get::<_, Table>("PLUGIN_INFO")
-                        .and_then(|t| t.get::<_, String>("name"))
+                        .get::<Table>("PLUGIN_INFO")
+                        .and_then(|t| t.get::<String>("name"))
                         .unwrap_or_else(|_| "unknown".to_string());
 
                     let callback_name = callback
@@ -314,15 +287,7 @@ impl LuaRuntime {
                     format!("Failed to execute plugin script: {:?}", plugin.file_path)
                 })?;
 
-            let globals = self.lua.globals();
-            let on_enable: Option<Function> = globals.get("on_enable").ok();
-            let on_disable: Option<Function> = globals.get("on_disable").ok();
-
-            plugin.on_enable = on_enable.map(|f| self.lua.create_registry_value(f).unwrap());
-            plugin.on_disable = on_disable.map(|f| self.lua.create_registry_value(f).unwrap());
-
-            if let Some(on_enable_key) = &plugin.on_enable {
-                let on_enable: Function = self.lua.registry_value(on_enable_key)?;
+            if let Some(on_enable) = &plugin.manifest.on_enable {
                 on_enable
                     .call::<()>(())
                     .with_context(|| format!("Failed to call on_enable for plugin {}", name))?;
@@ -342,8 +307,7 @@ impl LuaRuntime {
                 return Ok(false);
             }
 
-            if let Some(on_disable_key) = &plugin.on_disable {
-                let on_disable: Function = self.lua.registry_value(on_disable_key)?;
+            if let Some(on_disable) = &plugin.manifest.on_disable {
                 on_disable
                     .call::<()>(())
                     .with_context(|| format!("Failed to call on_disable for plugin {}", name))?;

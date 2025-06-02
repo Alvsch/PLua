@@ -1,17 +1,17 @@
 use async_trait::async_trait;
 use pumpkin::{
     command::{
-        args::{message::MsgArgConsumer, Arg, ConsumedArgs},
+        CommandExecutor, CommandSender,
+        args::{Arg, ConsumedArgs, message::MsgArgConsumer},
         dispatcher::CommandError,
         tree::{
-            builder::{argument, literal},
             CommandTree,
+            builder::{argument, literal},
         },
-        CommandExecutor, CommandSender,
     },
     server::Server,
 };
-use pumpkin_util::text::{color::NamedColor, TextComponent};
+use pumpkin_util::text::{TextComponent, color::NamedColor};
 
 use crate::lua;
 

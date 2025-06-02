@@ -3,12 +3,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mlua::{Function, Lua, Table, Value};
 use pumpkin::{
-    plugin::{player::player_join::PlayerJoinEvent, Context, EventHandler, EventPriority},
+    plugin::{Context, EventHandler, EventPriority, player::player_join::PlayerJoinEvent},
     server::Server,
 };
 use pumpkin_api_macros::with_runtime;
 
-use crate::lua::worker::{send_event_command, LuaCommand};
+use crate::lua::worker::{LuaCommand, send_event_command};
 
 pub struct PlayerJoinEventHandler;
 
@@ -88,11 +88,9 @@ pub fn trigger_event(lua: &Lua, event_data_json: &str) -> mlua::Result<()> {
     event_table.set("player_uuid", event_data.player_uuid)?;
     event_table.set("join_message", event_data.join_message)?;
 
-    for pair in player_join_listeners.pairs::<Value, Function>() {
-        if let Ok((_, callback)) = pair {
-            if let Err(e) = callback.call::<()>(event_table.clone()) {
-                log::error!("Error in player_join event handler: {}", e);
-            }
+    for (_, callback) in player_join_listeners.pairs::<Value, Function>().flatten() {
+        if let Err(e) = callback.call::<()>(event_table.clone()) {
+            log::error!("Error in player_join event handler: {}", e);
         }
     }
 

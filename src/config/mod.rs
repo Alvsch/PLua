@@ -3,17 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct PLuaConfig {
     pub enabled_plugins: Vec<String>,
-}
-
-impl Default for PLuaConfig {
-    fn default() -> Self {
-        Self {
-            enabled_plugins: Vec::new(),
-        }
-    }
 }
 
 #[derive(Clone)]
