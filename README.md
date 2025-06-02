@@ -82,6 +82,24 @@ pumpkin.log.debug("Debug message")
 pumpkin.server.broadcast_message("Hello everyone!")
 ```
 
+#### Events
+```lua
+-- Register event listeners
+local join_listener = pumpkin.events.register_listener("player_join", function(event)
+    pumpkin.log.info("Player joined: " .. event.player_name)
+    -- Access event data: event.player_name, event.player_uuid, event.join_message
+end)
+
+local chat_listener = pumpkin.events.register_listener("player_chat", function(event)
+    pumpkin.log.info("Chat message: " .. event.message)
+    -- Access event data: event.player_name, event.player_uuid, event.message, event.recipients
+end)
+
+-- Unregister event listeners
+pumpkin.events.unregister_listener("player_join", join_listener)
+pumpkin.events.unregister_listener("player_chat", chat_listener)
+```
+
 ## Plugin Lifecycle
 
 1. PLua scans the `plugins` directory for `.lua` files
@@ -91,9 +109,61 @@ pumpkin.server.broadcast_message("Hello everyone!")
    b. Calling its `on_enable` function
 4. When plugins are disabled, their `on_disable` function is called
 
+## Event System
+
+PLua includes an event system that allows Lua plugins to respond to game events. Currently supported events:
+
+### Player Join Event
+Triggered when a player joins the server.
+
+Event data:
+- `player_name`: The name of the player
+- `player_uuid`: The UUID of the player
+- `join_message`: The join message
+
+### Player Leave Event
+Triggered when a player leaves the server.
+
+Event data:
+- `player_name`: The name of the player
+- `player_uuid`: The UUID of the player
+- `leave_message`: The leave message
+
+### Player Chat Event
+Triggered when a player sends a chat message.
+
+Event data:
+- `player_name`: The name of the player
+- `player_uuid`: The UUID of the player
+- `message`: The content of the chat message
+- `recipients`: The number of players who will receive the message
+
+### Block Place Event
+Triggered when a player places a block.
+
+Event data:
+- `player_name`: The name of the player
+- `player_uuid`: The UUID of the player
+- `block_placed`: The type of block being placed
+- `block_against`: The type of block being placed against
+- `can_build`: Whether the player is allowed to build in this location
+
+### Block Break Event
+Triggered when a block is broken.
+
+Event data:
+- `player_name`: The name of the player (if a player broke it, otherwise nil)
+- `player_uuid`: The UUID of the player (if a player broke it, otherwise nil)
+- `block_type`: The type of block that was broken
+- `position_x`, `position_y`, `position_z`: The coordinates of the block
+- `experience`: The amount of experience that will drop
+- `drop_items`: Whether items will drop from this block
+
+See the `examples/hello_event` and `examples/event_logger` directories for sample plugins that use the event system.
+
 ## Future Enhancements
 
-- Event system to let Lua plugins respond to game events
+- More events (entity interactions, inventory actions, etc.)
 - Command registration API
 - Player and world manipulation
 - Task scheduling

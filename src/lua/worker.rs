@@ -1,10 +1,11 @@
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::Mutex;
+use std::sync::{Mutex, Once};
 
 use anyhow::{anyhow, Result};
 
+use super::events;
 use super::runtime::LuaRuntime;
 use crate::config::ConfigManager;
 
@@ -71,10 +72,16 @@ pub enum LuaCommand {
         name: String,
         response: Sender<Option<PluginInfo>>,
     },
+    TriggerEvent {
+        event_type: String,
+        event_data: String,
+    },
 }
 
-pub fn run_lua_worker(rx: Receiver<LuaCommand>, data_dir: String) {
+pub fn run_lua_worker(rx: Receiver<LuaCommand>, tx: Sender<LuaCommand>, data_dir: String) {
     let data_path = PathBuf::from(data_dir);
+
+    init_event_sender(tx);
 
     let manager = match LuaManager::new(&data_path) {
         Ok(m) => Mutex::new(m),
@@ -136,6 +143,12 @@ pub fn run_lua_worker(rx: Receiver<LuaCommand>, data_dir: String) {
             LuaCommand::GetPluginInfo { name, response } => {
                 let result = get_plugin_info(&manager, &name);
                 let _ = response.send(result);
+            }
+            LuaCommand::TriggerEvent {
+                event_type,
+                event_data,
+            } => {
+                handle_event(&manager, &event_type, &event_data);
             }
         }
     }
@@ -311,6 +324,82 @@ fn enable_plugin(manager: &Mutex<LuaManager>, name: String) -> Result<bool> {
     }
 
     Ok(added_to_config)
+}
+
+static INIT_EVENT_SENDER: Once = Once::new();
+static mut EVENT_SENDER: Option<Sender<LuaCommand>> = None;
+
+pub fn send_event_command(command: LuaCommand) -> Result<()> {
+    unsafe {
+        #[allow(static_mut_refs)]
+        if let Some(sender) = &EVENT_SENDER {
+            sender
+                .send(command)
+                .map_err(|_| anyhow!("Failed to send command to Lua worker"))
+        } else {
+            Err(anyhow!("Event sender not initialized"))
+        }
+    }
+}
+
+fn init_event_sender(tx: Sender<LuaCommand>) {
+    INIT_EVENT_SENDER.call_once(|| unsafe {
+        EVENT_SENDER = Some(tx);
+    });
+}
+
+fn handle_event(manager: &Mutex<LuaManager>, event_type: &str, event_data: &str) {
+    match manager.lock() {
+        Ok(lock) => {
+            if !lock.initialized {
+                return;
+            }
+
+            match event_type {
+                "player_join" => {
+                    if let Err(e) =
+                        events::player_join::trigger_event(&lock.runtime.lua, event_data)
+                    {
+                        log::error!("Error triggering player_join event: {}", e);
+                    }
+                }
+                "player_leave" => {
+                    if let Err(e) =
+                        events::player_leave::trigger_event(&lock.runtime.lua, event_data)
+                    {
+                        log::error!("Error triggering player_leave event: {}", e);
+                    }
+                }
+                "player_chat" => {
+                    if let Err(e) =
+                        events::player_chat::trigger_event(&lock.runtime.lua, event_data)
+                    {
+                        log::error!("Error triggering player_chat event: {}", e);
+                    }
+                }
+                "block_place" => {
+                    if let Err(e) =
+                        events::block_place::trigger_event(&lock.runtime.lua, event_data)
+                    {
+                        log::error!("Error triggering block_place event: {}", e);
+                    }
+                }
+                "block_break" => {
+                    if let Err(e) =
+                        events::block_break::trigger_event(&lock.runtime.lua, event_data)
+                    {
+                        log::error!("Error triggering block_break event: {}", e);
+                    }
+                }
+                _ => {
+                    log::warn!("Unknown event type: {}", event_type);
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to acquire lock for event handling: {:?}", e);
+        }
+    }
 }
 
 fn disable_plugin(manager: &Mutex<LuaManager>, name: String) -> Result<bool> {

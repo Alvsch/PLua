@@ -1,3 +1,4 @@
+pub mod events;
 pub mod runtime;
 pub mod worker;
 
@@ -11,25 +12,23 @@ use anyhow::{anyhow, Result};
 
 use self::worker::{run_lua_worker, LuaCommand};
 
-// Static initialization for worker thread and channels
 static INIT: Once = Once::new();
 static mut COMMAND_SENDER: Option<Sender<LuaCommand>> = None;
 static mut WORKER_HANDLE: Option<thread::JoinHandle<()>> = None;
-// Track if initialization is complete
 static mut IS_INITIALIZED: bool = false;
 
-// Initialize the Lua worker thread
 pub fn init_lua_manager(data_dir: String) -> Result<()> {
     INIT.call_once(|| {
         let (tx, rx) = mpsc::channel::<LuaCommand>();
 
         unsafe {
-            COMMAND_SENDER = Some(tx);
+            COMMAND_SENDER = Some(tx.clone());
         }
 
         let data_path = data_dir.clone();
+        let tx = tx.clone();
         let handle = thread::spawn(move || {
-            run_lua_worker(rx, data_path);
+            run_lua_worker(rx, tx, data_path);
         });
 
         unsafe {

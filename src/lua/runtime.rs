@@ -6,6 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::config::ConfigManager;
+use crate::lua::events;
 use crate::SERVER;
 
 pub struct LuaPlugin {
@@ -164,6 +165,150 @@ impl LuaRuntime {
             )?;
 
             pumpkin_table.set("server", server_table)?;
+        }
+
+        {
+            let events_table = lua.create_table()?;
+
+            events_table.set(
+                "register_listener",
+                lua.create_function(|lua_ctx, (event_type, callback): (String, Function)| {
+                    let globals = lua_ctx.globals();
+                    let pumpkin: Table = globals.get("pumpkin")?;
+                    let events: Table = pumpkin.get("events")?;
+
+                    match event_type.as_str() {
+                        "player_join" => {
+                            let listeners: Table = events.get("player_join")?;
+                            let listener_id = format!(
+                                "listener_{}",
+                                lua_ctx
+                                    .create_string(
+                                        callback.info().name.unwrap_or("player_join".to_string())
+                                    )?
+                                    .to_str()?
+                                    .to_string()
+                                    .replace(|c: char| !c.is_alphanumeric(), "")
+                            );
+                            listeners.set(listener_id.clone(), callback)?;
+                            Ok(listener_id)
+                        }
+                        "player_leave" => {
+                            let listeners: Table = events.get("player_leave")?;
+                            let listener_id = format!(
+                                "listener_{}",
+                                lua_ctx
+                                    .create_string(
+                                        callback.info().name.unwrap_or("player_leave".to_string())
+                                    )?
+                                    .to_str()?
+                                    .to_string()
+                                    .replace(|c: char| !c.is_alphanumeric(), "")
+                            );
+                            listeners.set(listener_id.clone(), callback)?;
+                            Ok(listener_id)
+                        }
+                        "player_chat" => {
+                            let listeners: Table = events.get("player_chat")?;
+                            let listener_id = format!(
+                                "listener_{}",
+                                lua_ctx
+                                    .create_string(
+                                        callback.info().name.unwrap_or("player_chat".to_string())
+                                    )?
+                                    .to_str()?
+                                    .to_string()
+                                    .replace(|c: char| !c.is_alphanumeric(), "")
+                            );
+                            listeners.set(listener_id.clone(), callback)?;
+                            Ok(listener_id)
+                        }
+                        "block_place" => {
+                            let listeners: Table = events.get("block_place")?;
+                            let listener_id = format!(
+                                "listener_{}",
+                                lua_ctx
+                                    .create_string(
+                                        callback.info().name.unwrap_or("block_place".to_string())
+                                    )?
+                                    .to_str()?
+                                    .to_string()
+                                    .replace(|c: char| !c.is_alphanumeric(), "")
+                            );
+                            listeners.set(listener_id.clone(), callback)?;
+                            Ok(listener_id)
+                        }
+                        "block_break" => {
+                            let listeners: Table = events.get("block_break")?;
+                            let listener_id = format!(
+                                "listener_{}",
+                                lua_ctx
+                                    .create_string(
+                                        callback.info().name.unwrap_or("block_break".to_string())
+                                    )?
+                                    .to_str()?
+                                    .to_string()
+                                    .replace(|c: char| !c.is_alphanumeric(), "")
+                            );
+                            listeners.set(listener_id.clone(), callback)?;
+                            Ok(listener_id)
+                        }
+                        _ => Err(mlua::Error::RuntimeError(format!(
+                            "Unknown event type: {}",
+                            event_type
+                        ))),
+                    }
+                })?,
+            )?;
+
+            events_table.set(
+                "unregister_listener",
+                lua.create_function(|lua_ctx, (event_type, listener_id): (String, String)| {
+                    let globals = lua_ctx.globals();
+                    let pumpkin: Table = globals.get("pumpkin")?;
+                    let events: Table = pumpkin.get("events")?;
+
+                    match event_type.as_str() {
+                        "player_join" => {
+                            let listeners: Table = events.get("player_join")?;
+                            listeners.set(listener_id, mlua::Value::Nil)?;
+                            Ok(true)
+                        }
+                        "player_leave" => {
+                            let listeners: Table = events.get("player_leave")?;
+                            listeners.set(listener_id, mlua::Value::Nil)?;
+                            Ok(true)
+                        }
+                        "player_chat" => {
+                            let listeners: Table = events.get("player_chat")?;
+                            listeners.set(listener_id, mlua::Value::Nil)?;
+                            Ok(true)
+                        }
+                        "block_place" => {
+                            let listeners: Table = events.get("block_place")?;
+                            listeners.set(listener_id, mlua::Value::Nil)?;
+                            Ok(true)
+                        }
+                        "block_break" => {
+                            let listeners: Table = events.get("block_break")?;
+                            listeners.set(listener_id, mlua::Value::Nil)?;
+                            Ok(true)
+                        }
+                        _ => Err(mlua::Error::RuntimeError(format!(
+                            "Unknown event type: {}",
+                            event_type
+                        ))),
+                    }
+                })?,
+            )?;
+
+            events::player_join::setup_lua_event(lua, &events_table)?;
+            events::player_leave::setup_lua_event(lua, &events_table)?;
+            events::player_chat::setup_lua_event(lua, &events_table)?;
+            events::block_place::setup_lua_event(lua, &events_table)?;
+            events::block_break::setup_lua_event(lua, &events_table)?;
+
+            pumpkin_table.set("events", events_table)?;
         }
 
         Ok(())
