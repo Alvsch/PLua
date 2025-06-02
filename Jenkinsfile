@@ -30,6 +30,7 @@ pipeline {
                         docker {
                             image 'rust:latest'
                             args '-v ${WORKSPACE}:/workspace'
+                            pull true
                         }
                     }
                     steps {
@@ -47,6 +48,7 @@ pipeline {
                         docker {
                             image 'rust:latest'
                             args '-v ${WORKSPACE}:/workspace -u root'
+                            pull true
                         }
                     }
                     steps {
@@ -80,6 +82,7 @@ EOF
                         docker {
                             image 'rust:latest'
                             args '-v ${WORKSPACE}:/workspace -u root'
+                            pull true
                         }
                     }
                     steps {
