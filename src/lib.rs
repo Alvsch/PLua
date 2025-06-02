@@ -35,9 +35,7 @@ async fn on_load(&mut self, context: &Context) -> Result<(), String> {
     let _ = SERVER.set(context.server.clone());
 
     self.setup_lua(context)?;
-
     self.register_plua_command(context).await?;
-
     lua::events::register_events(context).await?;
 
     Ok(())
