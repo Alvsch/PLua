@@ -3,7 +3,7 @@ name: Create Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 # Cancel in-progress runs when a new workflow with the same ref is triggered
 concurrency:
@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      
+
       - name: Check for skip CI keywords
         id: skip-check
         run: |
@@ -86,7 +86,7 @@ jobs:
         shell: bash
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
           path: artifacts/${{ matrix.artifact_name }}
@@ -101,7 +101,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -124,11 +124,11 @@ jobs:
           files: release-assets/*
           body: |
             ## PLua ${{ steps.tag.outputs.VERSION }}
-            
+
             Lua plugin system for Pumpkin Minecraft server
-            
+
             ### Available Builds
-            
+
             - libplua_x86_64_linux.so - For Linux x86_64
             - libplua_aarch64_linux.so - For Linux ARM64
             - plua_x86_64_windows.dll - For Windows x86_64

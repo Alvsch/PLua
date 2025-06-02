@@ -2,13 +2,13 @@ name: Build PLua Plugin
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'examples/**'
+      - "**.md"
+      - "docs/**"
+      - "examples/**"
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 # Cancel in-progress runs when a new workflow with the same ref is triggered
@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      
+
       - name: Check for skip CI keywords
         id: skip-check
         run: |
@@ -90,33 +90,3 @@ jobs:
             cp target/${{ matrix.target }}/release/libplua.${{ matrix.file_extension }} artifacts/${{ matrix.artifact_name }}
           fi
         shell: bash
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: artifacts/${{ matrix.artifact_name }}
-          if-no-files-found: error
-
-  collect-artifacts:
-    name: Collect Artifacts
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-        with:
-          path: artifacts
-
-      - name: Create combined artifact
-        run: |
-          mkdir -p combined-artifacts
-          find artifacts -type f -exec cp {} combined-artifacts/ \;
-          ls -la combined-artifacts/
-
-      - name: Upload combined artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: plua-all-platforms
-          path: combined-artifacts/*
-          if-no-files-found: error
