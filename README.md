@@ -2,15 +2,48 @@
 
 PLua is a plugin for the Pumpkin Minecraft server that enables loading and managing plugins written in Lua. This is a translation layer/runtime that allows server administrators to extend their Pumpkin server with Lua scripting capabilities.
 
-## Downloads
+## Installation
 
-Pre-built binaries for the most common architectures are available on our Jenkins CI server:
+### Pre-built Binaries
+
+Pre-built binaries for the most common architectures are available from GitHub Releases:
 
 | Platform | Architecture | Download |
 | -------- | ------------ | -------- |
-| Linux    | amd64        | [Download](https://ci.vypal.me/job/PumpkinPlugins/job/PLua/job/master/lastSuccessfulBuild/artifact/artifacts/libplua_x86_64_linux.so) |
-| Linux    | arm64        | [Download](https://ci.vypal.me/job/PumpkinPlugins/job/PLua/job/master/lastSuccessfulBuild/artifact/artifacts/libplua_aarch64_linux.so) |
-| Windows  | amd64        | [Download](https://ci.vypal.me/job/PumpkinPlugins/job/PLua/job/master/lastSuccessfulBuild/artifact/artifacts/plua_x86_64_windows.dll) |
+| Linux    | amd64        | [Download](https://github.com/Pumpkin-MC/PLua/releases/latest/download/libplua_x86_64_linux.so) |
+| Linux    | arm64        | [Download](https://github.com/Pumpkin-MC/PLua/releases/latest/download/libplua_aarch64_linux.so) |
+| Windows  | amd64        | [Download](https://github.com/Pumpkin-MC/PLua/releases/latest/download/plua_x86_64_windows.dll) |
+
+Download the appropriate file for your platform and place it in the `plugins` directory of your Pumpkin server.
+
+You can also download all platform builds from the [latest release page](https://github.com/Pumpkin-MC/PLua/releases/latest).
+
+### Building from Source
+
+If you prefer to build from source:
+
+```bash
+# Clone the repository
+git clone https://github.com/Pumpkin-MC/PLua.git
+cd PLua
+
+# Build the plugin
+cargo build --release
+
+# The compiled plugin will be in target/release/
+```
+
+For cross-compilation, you can specify the target platform:
+
+```bash
+# For Linux ARM64
+rustup target add aarch64-unknown-linux-gnu
+cargo build --release --target aarch64-unknown-linux-gnu
+
+# For Windows
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+```
 
 ## Features
 
@@ -19,16 +52,19 @@ Pre-built binaries for the most common architectures are available on our Jenkin
 - Hot reload plugins without restarting the server
 - Simplified API for Lua plugins to interact with the Pumpkin server
 
-## Installation
+## Getting Started
 
-1. Build the plugin:
-   ```
-   cargo build --release
-   ```
+1. Install the plugin by downloading a pre-built binary or building from source.
 
-2. Copy the compiled `.so` or `.dll` file from `target/release/` to your Pumpkin server's plugins directory.
+2. Copy the compiled `.so` or `.dll` file to your Pumpkin server's plugins directory.
 
-3. Restart your Pumpkin server.
+3. Start or restart your Pumpkin server.
+
+4. The plugin will create a `plugins/plua` directory with a `plugins` subdirectory where Lua plugins will be stored.
+
+5. Install some Lua plugins or create your own and place them in the `plugins/plua/plugins` directory.
+
+6. Enable plugins using the in-game commands (see below).
 
 ## Commands
 
@@ -45,7 +81,7 @@ PLua provides the following in-game commands:
 
 ### Plugin Structure
 
-Create a `.lua` file in the `plugins` folder in the PLua data directory. Each plugin must have:
+Create a `.lua` file in the `plugins/plua/plugins` folder. Each plugin must have:
 
 1. A `PLUGIN_INFO` table with metadata
 2. `on_enable` and `on_disable` functions (optional but recommended)
@@ -73,6 +109,8 @@ function on_disable()
     -- Your cleanup code here
 end
 ```
+
+For more complex examples, check the `examples` directory in this repository.
 
 ### Available API
 

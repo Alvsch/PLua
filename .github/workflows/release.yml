@@ -1,0 +1,134 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Cancel in-progress runs when a new workflow with the same ref is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-commit:
+    name: Check Commit Message
+    runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.skip-check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check for skip CI keywords
+        id: skip-check
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -qiE '\[(skip|no) ci\]'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping build due to [skip ci] or [no ci] in commit message"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Build for ${{ matrix.os }}-${{ matrix.target }}
+    needs: check-commit
+    if: needs.check-commit.outputs.skip != 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: libplua_x86_64_linux.so
+            file_extension: so
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: libplua_aarch64_linux.so
+            file_extension: so
+            cross: true
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+            artifact_name: plua_x86_64_windows.dll
+            file_extension: dll
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (ARM64)
+        if: matrix.cross
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          mkdir -p .cargo
+          echo '[target.aarch64-unknown-linux-gnu]' > .cargo/config.toml
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> .cargo/config.toml
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename build artifact
+        run: |
+          mkdir -p artifacts
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp target/${{ matrix.target }}/release/plua.${{ matrix.file_extension }} artifacts/${{ matrix.artifact_name }}
+          else
+            cp target/${{ matrix.target }}/release/libplua.${{ matrix.file_extension }} artifacts/${{ matrix.artifact_name }}
+          fi
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: artifacts/${{ matrix.artifact_name }}
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: [check-commit, build]
+    if: needs.check-commit.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f -exec cp {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Extract tag name
+        id: tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: PLua ${{ steps.tag.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: release-assets/*
+          body: |
+            ## PLua ${{ steps.tag.outputs.VERSION }}
+            
+            Lua plugin system for Pumpkin Minecraft server
+            
+            ### Available Builds
+            
+            - libplua_x86_64_linux.so - For Linux x86_64
+            - libplua_aarch64_linux.so - For Linux ARM64
+            - plua_x86_64_windows.dll - For Windows x86_64
