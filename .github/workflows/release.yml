@@ -80,8 +80,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: [check-commit, build]
-    if: needs.check-commit.outputs.skip != 'true'
+    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
