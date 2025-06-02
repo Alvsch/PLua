@@ -109,7 +109,7 @@ pub fn trigger_event(lua: &Lua, event_data_json: &str) -> mlua::Result<()> {
 
     for pair in block_break_listeners.pairs::<Value, Function>() {
         if let Ok((_, callback)) = pair {
-            if let Err(e) = callback.call::<_, ()>(event_table.clone()) {
+            if let Err(e) = callback.call::<()>(event_table.clone()) {
                 log::error!("Error in block_break event handler: {}", e);
             }
         }

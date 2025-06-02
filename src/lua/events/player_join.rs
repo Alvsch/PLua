@@ -90,7 +90,7 @@ pub fn trigger_event(lua: &Lua, event_data_json: &str) -> mlua::Result<()> {
 
     for pair in player_join_listeners.pairs::<Value, Function>() {
         if let Ok((_, callback)) = pair {
-            if let Err(e) = callback.call::<_, ()>(event_table.clone()) {
+            if let Err(e) = callback.call::<()>(event_table.clone()) {
                 log::error!("Error in player_join event handler: {}", e);
             }
         }

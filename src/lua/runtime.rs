@@ -324,7 +324,7 @@ impl LuaRuntime {
             if let Some(on_enable_key) = &plugin.on_enable {
                 let on_enable: Function = self.lua.registry_value(on_enable_key)?;
                 on_enable
-                    .call::<_, ()>(())
+                    .call::<()>(())
                     .with_context(|| format!("Failed to call on_enable for plugin {}", name))?;
             }
 
@@ -345,7 +345,7 @@ impl LuaRuntime {
             if let Some(on_disable_key) = &plugin.on_disable {
                 let on_disable: Function = self.lua.registry_value(on_disable_key)?;
                 on_disable
-                    .call::<_, ()>(())
+                    .call::<()>(())
                     .with_context(|| format!("Failed to call on_disable for plugin {}", name))?;
             }
 
