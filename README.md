@@ -2,6 +2,16 @@
 
 PLua is a plugin for the Pumpkin Minecraft server that enables loading and managing plugins written in Lua. This is a translation layer/runtime that allows server administrators to extend their Pumpkin server with Lua scripting capabilities.
 
+## Downloads
+
+Pre-built binaries for the most common architectures are available on our Jenkins CI server:
+
+| Platform | Architecture | Download |
+| -------- | ------------ | -------- |
+| Linux    | amd64        | [Download](https://ci.vypal.me/job/PumpkinPlugins/job/PLua/job/master/lastSuccessfulBuild/artifact/artifacts/libplua_x86_64_linux.so) |
+| Linux    | arm64        | [Download](https://ci.vypal.me/job/PumpkinPlugins/job/PLua/job/master/lastSuccessfulBuild/artifact/artifacts/libplua_aarch64_linux.so) |
+| Windows  | amd64        | [Download](https://ci.vypal.me/job/PumpkinPlugins/job/PLua/job/master/lastSuccessfulBuild/artifact/artifacts/plua_x86_64_windows.dll) |
+
 ## Features
 
 - Load and manage Lua plugins
