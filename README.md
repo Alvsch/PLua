@@ -10,13 +10,13 @@ Pre-built binaries for the most common architectures are available from GitHub R
 
 | Platform | Architecture | Download |
 | -------- | ------------ | -------- |
-| Linux    | amd64        | [Download](https://github.com/Pumpkin-MC/PLua/releases/latest/download/libplua_x86_64_linux.so) |
-| Linux    | arm64        | [Download](https://github.com/Pumpkin-MC/PLua/releases/latest/download/libplua_aarch64_linux.so) |
-| Windows  | amd64        | [Download](https://github.com/Pumpkin-MC/PLua/releases/latest/download/plua_x86_64_windows.dll) |
+| Linux    | amd64        | [Download](https://github.com/PumpkinPlugins/PLua/releases/latest/download/libplua_x86_64_linux.so) |
+| Linux    | arm64        | [Download](https://github.com/PumpkinPlugins/PLua/releases/latest/download/libplua_aarch64_linux.so) |
+| Windows  | amd64        | [Download](https://github.com/PumpkinPlugins/PLua/releases/latest/download/plua_x86_64_windows.dll) |
 
 Download the appropriate file for your platform and place it in the `plugins` directory of your Pumpkin server.
 
-You can also download all platform builds from the [latest release page](https://github.com/Pumpkin-MC/PLua/releases/latest).
+You can also download all platform builds from the [latest release page](https://github.com/PumpkinPlugins/PLua/releases/latest).
 
 ### Building from Source
 
@@ -24,7 +24,7 @@ If you prefer to build from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Pumpkin-MC/PLua.git
+git clone https://github.com/PumpkinPlugins/PLua.git
 cd PLua
 
 # Build the plugin
