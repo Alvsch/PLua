@@ -1,13 +1,15 @@
 use anyhow::{Context as AnyhowContext, Result};
 use mlua::{Function, Lua, Table};
 use pumpkin_util::text::TextComponent;
+use rand::{Rng, rng};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::SERVER;
 use crate::config::ConfigManager;
 use crate::lua::events;
-use crate::SERVER;
 
 pub struct LuaPlugin {
     pub name: String,
@@ -177,79 +179,53 @@ impl LuaRuntime {
                     let pumpkin: Table = globals.get("pumpkin")?;
                     let events: Table = pumpkin.get("events")?;
 
+                    let timestamp = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis();
+
+                    let random = rng().random::<u32>();
+
+                    let plugin_name = lua_ctx
+                        .globals()
+                        .get::<_, Table>("PLUGIN_INFO")
+                        .and_then(|t| t.get::<_, String>("name"))
+                        .unwrap_or_else(|_| "unknown".to_string());
+
+                    let callback_name = callback
+                        .info()
+                        .name
+                        .unwrap_or_else(|| event_type.clone())
+                        .replace(|c: char| !c.is_alphanumeric(), "");
+
+                    let listener_id = format!(
+                        "listener_{}_{}_{}_{}",
+                        plugin_name, callback_name, timestamp, random
+                    );
+
                     match event_type.as_str() {
                         "player_join" => {
                             let listeners: Table = events.get("player_join")?;
-                            let listener_id = format!(
-                                "listener_{}",
-                                lua_ctx
-                                    .create_string(
-                                        callback.info().name.unwrap_or("player_join".to_string())
-                                    )?
-                                    .to_str()?
-                                    .to_string()
-                                    .replace(|c: char| !c.is_alphanumeric(), "")
-                            );
                             listeners.set(listener_id.clone(), callback)?;
                             Ok(listener_id)
                         }
                         "player_leave" => {
                             let listeners: Table = events.get("player_leave")?;
-                            let listener_id = format!(
-                                "listener_{}",
-                                lua_ctx
-                                    .create_string(
-                                        callback.info().name.unwrap_or("player_leave".to_string())
-                                    )?
-                                    .to_str()?
-                                    .to_string()
-                                    .replace(|c: char| !c.is_alphanumeric(), "")
-                            );
                             listeners.set(listener_id.clone(), callback)?;
                             Ok(listener_id)
                         }
                         "player_chat" => {
                             let listeners: Table = events.get("player_chat")?;
-                            let listener_id = format!(
-                                "listener_{}",
-                                lua_ctx
-                                    .create_string(
-                                        callback.info().name.unwrap_or("player_chat".to_string())
-                                    )?
-                                    .to_str()?
-                                    .to_string()
-                                    .replace(|c: char| !c.is_alphanumeric(), "")
-                            );
                             listeners.set(listener_id.clone(), callback)?;
                             Ok(listener_id)
                         }
                         "block_place" => {
                             let listeners: Table = events.get("block_place")?;
-                            let listener_id = format!(
-                                "listener_{}",
-                                lua_ctx
-                                    .create_string(
-                                        callback.info().name.unwrap_or("block_place".to_string())
-                                    )?
-                                    .to_str()?
-                                    .to_string()
-                                    .replace(|c: char| !c.is_alphanumeric(), "")
-                            );
                             listeners.set(listener_id.clone(), callback)?;
                             Ok(listener_id)
                         }
                         "block_break" => {
                             let listeners: Table = events.get("block_break")?;
-                            let listener_id = format!(
-                                "listener_{}",
-                                lua_ctx
-                                    .create_string(
-                                        callback.info().name.unwrap_or("block_break".to_string())
-                                    )?
-                                    .to_str()?
-                                    .to_string()
-                                    .replace(|c: char| !c.is_alphanumeric(), "")
-                            );
                             listeners.set(listener_id.clone(), callback)?;
                             Ok(listener_id)
                         }

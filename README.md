@@ -143,6 +143,10 @@ local chat_listener = pumpkin.events.register_listener("player_chat", function(e
     -- Access event data: event.player_name, event.player_uuid, event.message, event.recipients
 end)
 
+-- Multiple plugins can register for the same event without conflicts
+-- Each listener gets a unique ID that combines plugin name, timestamp and random value
+print(join_listener) -- e.g. "listener_MyPlugin_player_join_1683724592123_3829572093"
+
 -- Unregister event listeners
 pumpkin.events.unregister_listener("player_join", join_listener)
 pumpkin.events.unregister_listener("player_chat", chat_listener)
