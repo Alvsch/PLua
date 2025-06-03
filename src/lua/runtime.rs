@@ -30,6 +30,7 @@ impl LuaRuntime {
         fs::create_dir_all(&plugins_dir).context("Failed to create plugins directory")?;
 
         let lua = Lua::new();
+        lua.sandbox(true)?;
 
         Ok(Self {
             lua,
@@ -61,9 +62,8 @@ impl LuaRuntime {
             .with_context(|| format!("Failed to read plugin file: {:?}", path))?;
 
         // Only used for metadata extraction
-        let temp_lua = Lua::new();
-
-        let manifest = temp_lua
+        let manifest = self
+            .lua
             .load(&script)
             .set_name(path.file_name().unwrap().to_string_lossy().as_ref())
             .eval::<LuaPluginManifest>()?;
