@@ -20,6 +20,8 @@ const DESCRIPTION: &str = "Manage Lua plugins for the Pumpkin server";
 
 const ARG_PLUGIN_NAME: &str = "plugin_name";
 
+pub const PERMISSION_NODE: &str = "plua:command.plua";
+
 pub fn init_command_tree() -> CommandTree {
     CommandTree::new(NAMES, DESCRIPTION)
         .then(literal("list").execute(ListPluginsExecutor {}))
