@@ -3,12 +3,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mlua::{Function, Lua, Table, Value};
 use pumpkin::{
-    plugin::{block::block_break::BlockBreakEvent, Context, EventHandler, EventPriority},
+    plugin::{Context, EventHandler, EventPriority, block::block_break::BlockBreakEvent},
     server::Server,
 };
 use pumpkin_api_macros::with_runtime;
 
-use crate::lua::worker::{send_event_command, LuaCommand};
+use crate::lua::worker::{LuaCommand, send_event_command};
 
 pub struct BlockBreakEventHandler;
 
@@ -107,11 +107,9 @@ pub fn trigger_event(lua: &Lua, event_data_json: &str) -> mlua::Result<()> {
     event_table.set("experience", event_data.experience)?;
     event_table.set("drop_items", event_data.drop_items)?;
 
-    for pair in block_break_listeners.pairs::<Value, Function>() {
-        if let Ok((_, callback)) = pair {
-            if let Err(e) = callback.call::<_, ()>(event_table.clone()) {
-                log::error!("Error in block_break event handler: {}", e);
-            }
+    for (_, callback) in block_break_listeners.pairs::<Value, Function>().flatten() {
+        if let Err(e) = callback.call::<()>(event_table.clone()) {
+            log::error!("Error in block_break event handler: {}", e);
         }
     }
 

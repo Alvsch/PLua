@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use pumpkin::{plugin::Context, server::Server};
 use pumpkin_api_macros::{plugin_impl, plugin_method};
-use pumpkin_util::PermissionLvl;
 use std::sync::OnceLock;
 
 mod commands;
@@ -23,7 +22,7 @@ impl PLuaPlugin {
 
     async fn register_plua_command(&self, context: &Context) -> Result<(), String> {
         let command = commands::plua::init_command_tree();
-        context.register_command(command, PermissionLvl::Four).await;
+        context.register_command(command, "TODO").await;
         Ok(())
     }
 }

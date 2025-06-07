@@ -3,13 +3,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use mlua::{Function, Lua, Table, Value};
 use pumpkin::{
-    plugin::{player::player_leave::PlayerLeaveEvent, Context, EventHandler, EventPriority},
+    plugin::{Context, EventHandler, EventPriority, player::player_leave::PlayerLeaveEvent},
     server::Server,
 };
 use pumpkin_api_macros::with_runtime;
 
-use crate::lua::worker::send_event_command;
 use crate::lua::worker::LuaCommand;
+use crate::lua::worker::send_event_command;
 
 pub struct PlayerLeaveEventHandler;
 
@@ -89,11 +89,9 @@ pub fn trigger_event(lua: &Lua, event_data_json: &str) -> mlua::Result<()> {
     event_table.set("player_uuid", event_data.player_uuid)?;
     event_table.set("leave_message", event_data.leave_message)?;
 
-    for pair in player_leave_listeners.pairs::<Value, Function>() {
-        if let Ok((_, callback)) = pair {
-            if let Err(e) = callback.call::<_, ()>(event_table.clone()) {
-                log::error!("Error in player_leave event handler: {}", e);
-            }
+    for (_, callback) in player_leave_listeners.pairs::<Value, Function>().flatten() {
+        if let Err(e) = callback.call::<()>(event_table.clone()) {
+            log::error!("Error in player_leave event handler: {}", e);
         }
     }
 

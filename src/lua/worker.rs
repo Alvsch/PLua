@@ -1,9 +1,9 @@
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Mutex, Once};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use super::events;
 use super::runtime::LuaRuntime;
@@ -19,7 +19,7 @@ pub struct LuaManager {
 }
 
 impl LuaManager {
-    pub fn new(data_path: &PathBuf) -> Result<Self> {
+    pub fn new(data_path: &Path) -> Result<Self> {
         let config_manager = ConfigManager::new(data_path)
             .map_err(|e| anyhow!("Failed to initialize config manager: {}", e))?;
 
@@ -257,20 +257,16 @@ fn get_plugin_info(manager: &Mutex<LuaManager>, name: &str) -> Option<PluginInfo
     }
 
     match manager.lock() {
-        Ok(lock) => {
-            if let Some(plugin) = lock.runtime.plugins.get(name) {
-                Some((
-                    plugin.name.clone(),
-                    plugin.description.clone(),
-                    plugin.version.clone(),
-                    plugin.author.clone(),
-                    plugin.enabled,
-                    plugin.file_path.clone(),
-                ))
-            } else {
-                None
-            }
-        }
+        Ok(lock) => lock.runtime.plugins.get(name).map(|plugin| {
+            (
+                plugin.manifest.name.clone(),
+                plugin.manifest.description.clone(),
+                plugin.manifest.version.clone(),
+                plugin.manifest.author.clone(),
+                plugin.enabled,
+                plugin.file_path.clone(),
+            )
+        }),
         Err(_) => None,
     }
 }
