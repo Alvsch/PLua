@@ -10,7 +10,10 @@ use std::sync::OnceLock;
 
 mod commands;
 mod config;
+mod loader;
 mod lua;
+
+use loader::LuaPluginLoader;
 
 pub static SERVER: OnceLock<Arc<Server>> = OnceLock::new();
 
@@ -37,6 +40,26 @@ impl PLuaPlugin {
             .await;
         Ok(())
     }
+
+    async fn register_lua_loader(&self, context: &Context) -> Result<(), String> {
+        let lua_loader = match LuaPluginLoader::new() {
+            Ok(loader) => loader,
+            Err(e) => return Err(format!("Failed to create Lua plugin loader: {}", e)),
+        };
+
+        lua::events::register_events(context).await?;
+
+        let plugin_manager = context.plugin_manager.clone();
+        let loader = Arc::new(lua_loader);
+        tokio::spawn(async move {
+            let plugin_manager = plugin_manager.clone();
+            let loader = loader.clone();
+            let mut manager = plugin_manager.write().await;
+            manager.add_loader(loader).await;
+        });
+
+        Ok(())
+    }
 }
 
 #[plugin_method]
@@ -47,7 +70,8 @@ async fn on_load(&mut self, context: &Context) -> Result<(), String> {
 
     self.setup_lua(context)?;
     self.register_plua_command(context).await?;
-    lua::events::register_events(context).await?;
+
+    self.register_lua_loader(context).await?;
 
     Ok(())
 }

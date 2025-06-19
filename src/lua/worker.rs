@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc;
 use std::sync::{Mutex, Once};
+use tokio::sync::broadcast::{Receiver, Sender};
 
 use anyhow::{Result, anyhow};
 
@@ -49,28 +50,29 @@ impl LuaManager {
     }
 }
 
+#[derive(Clone)]
 pub enum LuaCommand {
     Reload {
-        response: Sender<Result<()>>,
+        response: mpsc::Sender<Result<()>>,
     },
     GetPluginList {
-        response: Sender<Vec<(String, bool)>>,
+        response: mpsc::Sender<Vec<(String, bool)>>,
     },
     EnablePlugin {
         name: String,
-        response: Sender<Result<bool>>,
+        response: mpsc::Sender<Result<bool>>,
     },
     DisablePlugin {
         name: String,
-        response: Sender<Result<bool>>,
+        response: mpsc::Sender<Result<bool>>,
     },
     ReloadPlugin {
         name: String,
-        response: Sender<Result<bool>>,
+        response: mpsc::Sender<Result<bool>>,
     },
     GetPluginInfo {
         name: String,
-        response: Sender<Option<PluginInfo>>,
+        response: mpsc::Sender<Option<PluginInfo>>,
     },
     TriggerEvent {
         event_type: String,
@@ -78,7 +80,11 @@ pub enum LuaCommand {
     },
 }
 
-pub fn run_lua_worker(rx: Receiver<LuaCommand>, tx: Sender<LuaCommand>, data_dir: String) {
+pub async fn run_lua_worker(
+    mut rx: Receiver<LuaCommand>,
+    tx: Sender<LuaCommand>,
+    data_dir: String,
+) {
     let data_path = PathBuf::from(data_dir);
 
     init_event_sender(tx);
@@ -118,7 +124,7 @@ pub fn run_lua_worker(rx: Receiver<LuaCommand>, tx: Sender<LuaCommand>, data_dir
         }
     }
 
-    while let Ok(cmd) = rx.recv() {
+    while let Ok(cmd) = rx.recv().await {
         match cmd {
             LuaCommand::Reload { response } => {
                 let result = reload_lua(&manager);
@@ -323,7 +329,7 @@ fn enable_plugin(manager: &Mutex<LuaManager>, name: String) -> Result<bool> {
 }
 
 static INIT_EVENT_SENDER: Once = Once::new();
-static mut EVENT_SENDER: Option<Sender<LuaCommand>> = None;
+pub static mut EVENT_SENDER: Option<Sender<LuaCommand>> = None;
 
 pub fn send_event_command(command: LuaCommand) -> Result<()> {
     unsafe {
@@ -331,7 +337,8 @@ pub fn send_event_command(command: LuaCommand) -> Result<()> {
         if let Some(sender) = &EVENT_SENDER {
             sender
                 .send(command)
-                .map_err(|_| anyhow!("Failed to send command to Lua worker"))
+                .map_err(|_| anyhow!("Failed to send command to Lua worker"))?;
+            Ok(())
         } else {
             Err(anyhow!("Event sender not initialized"))
         }

@@ -2,6 +2,8 @@
 
 PLua is a plugin for the Pumpkin Minecraft server that enables loading and managing plugins written in Lua. This is a translation layer/runtime that allows server administrators to extend their Pumpkin server with Lua scripting capabilities.
 
+> **New!** PLua now supports loading Lua plugins directly from the server's plugins directory! [Learn more](#direct-lua-plugins)
+
 ## Installation
 
 ### Pre-built Binaries
@@ -54,6 +56,10 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 ## Getting Started
 
+There are two ways to use PLua: via the traditional method (using `/plua` commands) or via the new direct plugin loading feature.
+
+### Traditional Method
+
 1. Install the plugin by downloading a pre-built binary or building from source.
 
 2. Copy the compiled `.so` or `.dll` file to your Pumpkin server's plugins directory.
@@ -65,6 +71,14 @@ cargo build --release --target x86_64-pc-windows-gnu
 5. Install some Lua plugins or create your own and place them in the `plugins/plua/plugins` directory.
 
 6. Enable plugins using the in-game commands (see below).
+
+### Direct Lua Plugins
+
+1. Install PLua as described above.
+
+2. Place your `.lua` or `.luau` files directly in the server's `plugins` directory.
+
+3. Start or restart your server - your Lua plugins will be loaded automatically as first-class server plugins.
 
 ## Commands
 
@@ -81,33 +95,33 @@ PLua provides the following in-game commands:
 
 ### Plugin Structure
 
-Create a `.lua` file in the `plugins/plua/plugins` folder. Each plugin must have:
+You can create either a traditional PLua plugin (in `plugins/plua/plugins`) or a direct Lua plugin (in `plugins`). Each plugin must have:
 
 1. A `PLUGIN_INFO` table with metadata
 2. `on_enable` and `on_disable` functions (optional but recommended)
 
-Basic example:
+#### Basic Example (Traditional or Direct):
 
 ```lua
--- Plugin metadata (required)
-PLUGIN_INFO = {
+-- Plugin metadata and lifecycle functions (required)
+return {
     name = "MyPlugin",
     description = "An awesome plugin",
     version = "1.0.0",
-    author = "Your Name"
+    author = "Your Name",
+    
+    -- Called when the plugin is enabled
+    on_enable = function()
+        pumpkin.log.info("MyPlugin enabled!")
+        -- Your initialization code here
+    end,
+    
+    -- Called when the plugin is disabled
+    on_disable = function()
+        pumpkin.log.info("MyPlugin disabled!")
+        -- Your cleanup code here
+    end
 }
-
--- Called when the plugin is enabled
-function on_enable()
-    pumpkin.log.info("MyPlugin enabled!")
-    -- Your initialization code here
-end
-
--- Called when the plugin is disabled
-function on_disable()
-    pumpkin.log.info("MyPlugin disabled!")
-    -- Your cleanup code here
-end
 ```
 
 For more complex examples, check the `examples` directory in this repository.
@@ -155,11 +169,11 @@ pumpkin.events.unregister_listener("player_chat", chat_listener)
 ## Plugin Lifecycle
 
 1. PLua scans the `plugins` directory for `.lua` files
-2. It loads plugin metadata from each file
+2. It loads and evaluates each plugin file to get its manifest (which contains metadata and lifecycle functions)
 3. Enabled plugins are initialized by:
    a. Loading the plugin script
-   b. Calling its `on_enable` function
-4. When plugins are disabled, their `on_disable` function is called
+   b. Calling its `on_enable` function from the manifest
+4. When plugins are disabled, their `on_disable` function from the manifest is called
 
 ## Event System
 
@@ -213,6 +227,27 @@ Event data:
 
 See the `examples/hello_event` and `examples/event_logger` directories for sample plugins that use the event system.
 
+## Direct Lua Plugins
+
+PLua now supports loading Lua plugins directly from the server's plugins directory, making them first-class citizens in the Pumpkin ecosystem.
+
+### Benefits of Direct Lua Plugins
+
+- **Seamless Integration**: Lua plugins appear alongside native plugins in the server's plugin list.
+- **Standard Management**: Use the server's plugin management commands instead of dedicated `/plua` commands.
+- **Full Lifecycle**: Direct plugins follow the same lifecycle as native plugins.
+- **Type Safety**: Use Luau's strict typing for more robust plugins.
+
+### Creating a Direct Lua Plugin
+
+1. Create a `.lua` or `.luau` file that returns a table with your plugin manifest (metadata and lifecycle functions).
+2. Place it directly in the server's `plugins` directory.
+3. Add `--!strict` at the top of your file to enable Luau's type checking (optional but recommended).
+
+### Compatibility
+
+Traditional PLua plugins continue to work as before. You can use both approaches side-by-side.
+
 ## Future Enhancements
 
 - More events (entity interactions, inventory actions, etc.)
@@ -220,6 +255,7 @@ See the `examples/hello_event` and `examples/event_logger` directories for sampl
 - Player and world manipulation
 - Task scheduling
 - Configuration file API for Lua plugins
+- Improved Luau type definitions
 
 ## License
 

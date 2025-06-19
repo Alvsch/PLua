@@ -5,9 +5,9 @@ pub mod worker;
 
 use std::path::PathBuf;
 use std::sync::Once;
-use std::sync::mpsc::{self, Sender};
-use std::thread;
+use std::sync::mpsc;
 use std::time::Duration;
+use tokio::sync::broadcast::{self, Sender};
 
 use anyhow::{Result, anyhow};
 
@@ -15,12 +15,12 @@ use self::worker::{LuaCommand, run_lua_worker};
 
 static INIT: Once = Once::new();
 static mut COMMAND_SENDER: Option<Sender<LuaCommand>> = None;
-static mut WORKER_HANDLE: Option<thread::JoinHandle<()>> = None;
+static mut WORKER_HANDLE: Option<tokio::task::JoinHandle<()>> = None;
 static mut IS_INITIALIZED: bool = false;
 
 pub fn init_lua_manager(data_dir: String) -> Result<()> {
     INIT.call_once(|| {
-        let (tx, rx) = mpsc::channel::<LuaCommand>();
+        let (tx, rx) = broadcast::channel::<LuaCommand>(64);
 
         unsafe {
             COMMAND_SENDER = Some(tx.clone());
@@ -28,8 +28,8 @@ pub fn init_lua_manager(data_dir: String) -> Result<()> {
 
         let data_path = data_dir.clone();
         let tx = tx.clone();
-        let handle = thread::spawn(move || {
-            run_lua_worker(rx, tx, data_path);
+        let handle = tokio::spawn(async move {
+            run_lua_worker(rx, tx, data_path).await;
         });
 
         unsafe {
